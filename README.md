@@ -1,6 +1,6 @@
 # 🧬 Genome Classifier Performance Evaluator
 
-Genome Classifier Performance Evaluator is a tool for evaluating and comparing the performance of various genome classifiers when processing sequencing data, such as **kraken2**, **clark**, **megablast**, and **krakenuniq**. 
+Genome Classifier Performance Evaluator is a tool for evaluating and comparing the performance of various genome classifiers when processing sequencing data, such as **kraken2**, **CLARK**, **MegaBlast**, and **k-SLAM**. 
 
 This tool calculates the total running time and total memory usage of each classifier through multiple repeated experiments to help users select the most suitable classifier for genome data analysis. 
 
