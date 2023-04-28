@@ -30,6 +30,7 @@ def run_experiment(command, conda_env=None, working_directory=None):
 
     :return: time and memory usage
     """
+    print(f"Running command: {command}")
     start_time = time.time()
     memory_before = get_memory_usage()
     try:
