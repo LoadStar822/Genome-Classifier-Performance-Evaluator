@@ -103,7 +103,7 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 elif classifier == 'krakenuniq':
                     command = f'krakenuniq --db {databases[classifier]} --paired --output {output_file} {forward_reads} {reverse_reads} --threads {num_threads}'
                 elif classifier == 'megablast':
-                    forward_reads = os.path.join(input_folder, f'{file_base}1.fastq')
+                    forward_reads = os.path.join(input_folder, f'{file_base}1.fasta')
                     command = f'blastn -task megablast -query {forward_reads} -db {databases[classifier]} -out {output_file} -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids sscinames scomnames stitle"'
                 elif classifier == 'k-SLAM':
                     command = f'~/software/k-SLAM/SLAM --db={databases[classifier]} --output-file={output_file} {forward_reads} {reverse_reads}'
