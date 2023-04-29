@@ -78,7 +78,7 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
     :return: Results of the experiment
     """
     results = {classifier: {'total_time': 0, 'total_memory': 0} for classifier in classifiers}
-    futures = []
+    commands = []
 
     for file_prefix in os.listdir(input_folder):
         if file_prefix.endswith('1.fq'):
@@ -93,11 +93,11 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 if not os.path.exists(output_folder):
                     os.makedirs(output_folder)
 
-                # If the output file already exists, the experiment is skipped
                 has_existing_output = any(
                     name.startswith(f"{file_base}_{classifier}") for name in os.listdir(output_folder)
                 )
                 if has_existing_output:
+                    print(f"Skipping {file_base} for {classifier} because output already exists")
                     continue
 
                 working_directory = os.path.expanduser('~')
@@ -121,18 +121,30 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
 
                 for _ in range(num_repeats):
                     conda_env = conda_envs.get(classifier)
-                    future = executor.submit(run_experiment, command, conda_env=conda_env,
-                                             working_directory=working_directory)
-                    futures.append((classifier, future))
-            for classifier, future in futures:
-                try:
-                    result = future.result()
-                    if result is not None:
-                        elapsed_time, memory_usage = result
-                        results[classifier]['total_time'] += elapsed_time
-                        results[classifier]['total_memory'] += memory_usage
-                except Exception as e:
-                    print(f"Error while running experiment for {classifier}: {e}")
+                    command_info = {
+                        'command': command,
+                        'conda_env': conda_env,
+                        'working_directory': working_directory,
+                        'classifier': classifier
+                    }
+                    commands.append(command_info)
+
+    futures = []
+    for command_info in commands:
+        future = executor.submit(run_experiment, command_info['command'],
+                                 conda_env=command_info['conda_env'],
+                                 working_directory=command_info['working_directory'])
+        futures.append((command_info['classifier'], future))
+
+    for classifier, future in futures:
+        try:
+            result = future.result()
+            if result is not None:
+                elapsed_time, memory_usage = result
+                results[classifier]['total_time'] += elapsed_time
+                results[classifier]['total_memory'] += memory_usage
+        except Exception as e:
+            print(f"Error while running experiment for {classifier}: {e}")
 
     return results
 
