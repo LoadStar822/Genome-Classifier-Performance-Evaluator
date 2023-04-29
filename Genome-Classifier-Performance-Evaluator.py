@@ -130,6 +130,8 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                     commands.append(command_info)
 
     futures = []
+    total_commands = len(commands)
+    completed_commands = 0
     for command_info in commands:
         future = executor.submit(run_experiment, command_info['command'],
                                  conda_env=command_info['conda_env'],
@@ -145,6 +147,9 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 results[classifier]['total_memory'] += memory_usage
         except Exception as e:
             print(f"Error while running experiment for {classifier}: {e}")
+        completed_commands += 1
+        remaining_commands = total_commands - completed_commands
+        print(f"Completed {completed_commands} of {total_commands} commands. Remaining: {remaining_commands} commands.")
 
     return results
 
