@@ -9,7 +9,7 @@ import subprocess
 import time
 import psutil
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 
 def get_memory_usage():
@@ -36,9 +36,14 @@ def run_experiment(command, conda_env=None, working_directory=None):
     try:
         if conda_env:
             command = f'conda run -n {conda_env} {command}'
-        subprocess.run(command, shell=True, check=True, cwd=working_directory)
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=working_directory)
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, command, output=stdout, stderr=stderr)
     except subprocess.CalledProcessError as e:
         print(f"Command execution failed: {e}")
+        print(f"STDOUT: {e.output.decode('utf-8')}")
+        print(f"STDERR: {e.stderr.decode('utf-8')}")
         return None
     end_time = time.time()
     memory_after = get_memory_usage()
@@ -104,8 +109,8 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 elif classifier == 'krakenuniq':
                     command = f'krakenuniq --db {databases[classifier]} --paired --output {output_file} {forward_reads} {reverse_reads} --threads {num_threads}'
                 elif classifier == 'megablast':
-                    forward_reads = os.path.join(input_folder, f'{file_base}1.fasta')
-                    command = f'blastn -task megablast -query {forward_reads} -db {databases[classifier]} -out {output_file} -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids sscinames scomnames stitle"'
+                    forward_reads_fasta = os.path.join(input_folder, f'{file_base}1.fasta')
+                    command = f'blastn -task megablast -query {forward_reads_fasta} -db {databases[classifier]} -out {output_file} -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids sscinames scomnames stitle"'
                 elif classifier == 'k-SLAM':
                     command = f'~/software/k-SLAM/SLAM --db={databases[classifier]} --output-file={output_file} {forward_reads} {reverse_reads}'
                 elif classifier == 'taxmaps':
@@ -151,7 +156,7 @@ def save_results_to_file(results, output_file):
 input_folder = os.path.expanduser('~/software/ART/datasets/simulated_data_new')
 bam_input_folder = os.path.expanduser('~/software/ART/datasets/bam_files')
 
-classifiers = ['clark', 'pathseq', 'kraken2', 'taxmaps', 'k-SLAM', 'megablast', 'krakenuniq']
+classifiers = ['krakenuniq', 'clark', 'pathseq', 'kraken2', 'taxmaps', 'k-SLAM', 'megablast']
 output_folders = {
     'kraken2': os.path.expanduser('~/software/ART/datasets/kraken2_results'),
     'clark': os.path.expanduser('~/software/ART/datasets/clark_results'),
@@ -175,7 +180,7 @@ databases = {
     }
 }
 if __name__ == '__main__':
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ProcessPoolExecutor(max_workers=10) as executor:
         results = run_experiments(classifiers, input_folder, output_folders, databases, executor=executor)
     result_output_file = "results.txt"
     save_results_to_file(results, result_output_file)
