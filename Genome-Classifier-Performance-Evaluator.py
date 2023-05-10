@@ -9,7 +9,7 @@ import subprocess
 import time
 import psutil
 import threading
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 
 def get_memory_usage():
@@ -32,11 +32,18 @@ def run_experiment(command, conda_env=None, working_directory=None):
     """
     print(f"Running command: {command}")
     start_time = time.time()
-    memory_before = get_memory_usage()
     try:
         if conda_env:
             command = f'conda run -n {conda_env} {command}'
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=working_directory)
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   cwd=working_directory)
+        process_memory = psutil.Process(process.pid)
+        max_memory_usage = 0
+        while process.poll() is None:
+            mem_info = process_memory.memory_info()
+            memory_usage = mem_info.rss / (1024 ** 2)  # Memory usage in MB
+            max_memory_usage = max(max_memory_usage, memory_usage)
+            time.sleep(1)
         stdout, stderr = process.communicate()
         if process.returncode != 0:
             raise subprocess.CalledProcessError(process.returncode, command, output=stdout, stderr=stderr)
@@ -46,9 +53,8 @@ def run_experiment(command, conda_env=None, working_directory=None):
         print(f"STDERR: {e.stderr.decode('utf-8')}")
         return None
     end_time = time.time()
-    memory_after = get_memory_usage()
     elapsed_time = end_time - start_time
-    memory_usage = memory_after - memory_before
+    memory_usage = max_memory_usage
     return elapsed_time, memory_usage
 
 
@@ -60,6 +66,7 @@ conda_envs = {
     'k-SLAM': 'kslam',
     'taxmaps': 'taxmaps',
     'pathseq': 'bioinformatics',
+    'clark-s': 'base',
 }
 
 
@@ -105,6 +112,9 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                     command = f'~/software/kraken2/kraken2 --db {databases[classifier]} --paired --output {output_file} {forward_reads} {reverse_reads} --threads {num_threads}'
                 elif classifier == 'clark':
                     command = f'~/software/CLARKSCV1.2.6.1/classify_metagenome.sh -n {num_threads} -P {forward_reads} {reverse_reads} -R {output_file}'
+                    working_directory = os.path.expanduser('~/software/CLARKSCV1.2.6.1')
+                elif classifier == 'clark-s':
+                    command = f'~/software/CLARKSCV1.2.6.1/classify_metagenome.sh -n {num_threads} -P {forward_reads} {reverse_reads} -R {output_file} --spaced'
                     working_directory = os.path.expanduser('~/software/CLARKSCV1.2.6.1')
                 elif classifier == 'krakenuniq':
                     command = f'krakenuniq --db {databases[classifier]} --paired --output {output_file} {forward_reads} {reverse_reads} --threads {num_threads}'
@@ -173,7 +183,7 @@ def save_results_to_file(results, output_file):
 input_folder = os.path.expanduser('~/software/ART/datasets/simulated_data_new')
 bam_input_folder = os.path.expanduser('~/software/ART/datasets/bam_files')
 
-classifiers = ['krakenuniq', 'clark', 'pathseq', 'kraken2', 'taxmaps', 'k-SLAM', 'megablast']
+classifiers = ['clark-s', 'clark', 'krakenuniq', 'pathseq', 'kraken2', 'taxmaps', 'k-SLAM', 'megablast']
 output_folders = {
     'kraken2': os.path.expanduser('~/software/ART/datasets/kraken2_results'),
     'clark': os.path.expanduser('~/software/ART/datasets/clark_results'),
@@ -181,11 +191,13 @@ output_folders = {
     'krakenuniq': os.path.expanduser('~/software/ART/datasets/krakenuniq_results'),
     'k-SLAM': os.path.expanduser('~/software/ART/datasets/k-SLAM_results'),
     'taxmaps': os.path.expanduser('~/software/ART/datasets/taxmaps_results'),
-    'pathseq': os.path.expanduser('~/software/ART/datasets/pathseq_results')
+    'pathseq': os.path.expanduser('~/software/ART/datasets/pathseq_results'),
+    'clark-s': os.path.expanduser('~/software/ART/datasets/clark-s_results')
 }
 databases = {
     'kraken2': os.path.expanduser('~/software/kraken2/standard'),
     'clark': os.path.expanduser('~/software/CLARKSCV1.2.6.1/DIR_DB'),
+    'clark-s': os.path.expanduser('~/software/CLARKSCV1.2.6.1/DIR_DB'),
     'megablast': os.path.expanduser('~/software/MegaBLAST/refseq_rna'),
     'krakenuniq': os.path.expanduser('~/software/krakenuniq'),
     'k-SLAM': os.path.expanduser('~/software/k-SLAM/refseq'),
@@ -197,9 +209,10 @@ databases = {
     }
 }
 if __name__ == '__main__':
-    with ProcessPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         results = run_experiments(classifiers, input_folder, output_folders, databases, executor=executor)
-    result_output_file = "results.txt"
+    current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+    result_output_file = f"results_{current_time}.txt"
     save_results_to_file(results, result_output_file)
 
     for classifier in classifiers:
