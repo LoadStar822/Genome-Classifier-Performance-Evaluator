@@ -9,7 +9,7 @@ import subprocess
 import time
 import psutil
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 
 def get_memory_usage():
@@ -209,7 +209,7 @@ databases = {
     }
 }
 if __name__ == '__main__':
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ProcessPoolExecutor(max_workers=10) as executor:
         results = run_experiments(classifiers, input_folder, output_folders, databases, executor=executor)
     current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
     result_output_file = f"results_{current_time}.txt"
