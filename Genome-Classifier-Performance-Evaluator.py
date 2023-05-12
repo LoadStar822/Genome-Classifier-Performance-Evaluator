@@ -9,27 +9,16 @@ import subprocess
 import time
 import psutil
 import threading
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 
 def get_memory_usage():
-    """
-    Get the memory usage of the current process
-    :return:
-    """
     process = psutil.Process(os.getpid())
     mem_info = process.memory_info()
     return mem_info.rss / (1024 ** 2)  # Returns the memory usage in MB
 
 
 def run_experiment(command, conda_env=None, working_directory=None):
-    """
-    Run the experiment and return the running time and memory usage
-    :param command: command to run
-    :param conda_env: conda environment to use
-
-    :return: time and memory usage
-    """
     print(f"Running command: {command}")
     start_time = time.time()
     try:
@@ -71,19 +60,6 @@ conda_envs = {
 
 
 def run_experiments(classifiers, input_folder, output_folders, databases, num_threads=1, num_repeats=1, executor=None):
-    """
-    Run the experiments for the given classifiers and input data
-
-    :param classifiers: Current taxonomic classification software
-    :param input_folder: Input data folder
-    :param output_folders: Output data folder
-    :param databases: Database folder
-    :param num_threads: Number of threads
-    :param num_repeats: Number of repetitions required for each experimental data
-    :param executor: Thread pool executor
-
-    :return: Results of the experiment
-    """
     results = {classifier: {'total_time': 0, 'total_memory': 0} for classifier in classifiers}
     commands = []
 
@@ -165,12 +141,6 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
 
 
 def save_results_to_file(results, output_file):
-    """
-    Save the results to a file
-    :param results: results of the experiment
-    :param output_file: output file
-    :return: none
-    """
     with open(output_file, 'w') as f:
         f.write("Classifier\tTotal running time (s)\tTotal Memory Usage (MB)\n")
         for classifier in classifiers:
@@ -209,7 +179,7 @@ databases = {
     }
 }
 if __name__ == '__main__':
-    with ProcessPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         results = run_experiments(classifiers, input_folder, output_folders, databases, executor=executor)
     current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
     result_output_file = f"results_{current_time}.txt"
