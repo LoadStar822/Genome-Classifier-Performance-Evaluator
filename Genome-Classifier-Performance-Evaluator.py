@@ -9,18 +9,18 @@ import subprocess
 import time
 import psutil
 import threading
-from concurrent.futures import ThreadPoolExecutor,as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
-
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run experiments with specified classifiers and thread number.")
-    parser.add_argument('--classifiers', type=str, required=True,
-                        help="Names of the classifiers to be run, separated by spaces. For example: 'clark-s krakenuniq'")
-    parser.add_argument('--num_threads', type=int, default=1,
-                        help="Number of threads to be used. Default is 1.")
+    parser.add_argument('-c', '--classifiers', type=str, required=True, nargs='+',
+                        help="Space separated classifiers to run. e.g. clark-s krakenuniq")
+    parser.add_argument('-t', '--threads', type=int, default=1,
+                        help="Number of threads to use.")
     return parser.parse_args()
+
 
 def get_memory_usage():
     process = psutil.Process(os.getpid())
@@ -36,16 +36,22 @@ def run_experiment(command, conda_env=None, working_directory=None):
             command = f'conda run -n {conda_env} {command}'
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    cwd=working_directory)
+        time.sleep(0.1)
         process_memory = psutil.Process(process.pid)
         max_memory_usage = 0
         while process.poll() is None:
             mem_info = process_memory.memory_info()
             memory_usage = mem_info.rss / (1024 ** 2)  # Memory usage in MB
+            # Include child processes in memory usage calculation
+            for child in process_memory.children(recursive=True):
+                child_mem_info = child.memory_info()
+                memory_usage += child_mem_info.rss / (1024 ** 2)
             max_memory_usage = max(max_memory_usage, memory_usage)
             time.sleep(1)
         stdout, stderr = process.communicate()
         if process.returncode != 0:
             raise subprocess.CalledProcessError(process.returncode, command, output=stdout, stderr=stderr)
+
     except subprocess.CalledProcessError as e:
         print(f"Command execution failed: {e}")
         print(f"STDOUT: {e.output.decode('utf-8')}")
@@ -137,13 +143,15 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
         futures.append(future)
 
     for future in as_completed(futures):
-        classifier, future = future_to_classifier[future]  # Get the classifier for this future
+        classifier = future_to_classifier[future]  # Get the classifier for this future
         try:
             result = future.result()
             if result is not None:
                 elapsed_time, memory_usage = result
                 results[classifier]['total_time'] += elapsed_time
                 results[classifier]['total_memory'] += memory_usage
+                print(
+                    f"Task for {classifier} finished. Elapsed time: {elapsed_time:.2f}s, Memory usage: {memory_usage:.2f}MB")
         except Exception as e:
             print(f"Error while running experiment for {classifier}: {e}")
         completed_commands += 1
@@ -193,8 +201,8 @@ databases = {
 }
 if __name__ == '__main__':
     args = parse_args()
-    classifiers = args.classifiers.split()  # 把从命令行获取的字符串转化为列表
-    num_threads = args.num_threads  # 从命令行获取线程数
+    classifiers = args.classifiers
+    num_threads = args.threads
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         future_to_classifier = {}
