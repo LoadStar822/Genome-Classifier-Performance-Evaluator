@@ -9,8 +9,18 @@ import subprocess
 import time
 import psutil
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor,as_completed
+import argparse
 
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run experiments with specified classifiers and thread number.")
+    parser.add_argument('--classifiers', type=str, required=True,
+                        help="Names of the classifiers to be run, separated by spaces. For example: 'clark-s krakenuniq'")
+    parser.add_argument('--num_threads', type=int, default=1,
+                        help="Number of threads to be used. Default is 1.")
+    return parser.parse_args()
 
 def get_memory_usage():
     process = psutil.Process(os.getpid())
@@ -116,15 +126,18 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                     commands.append(command_info)
 
     futures = []
+    future_to_classifier = {}
     total_commands = len(commands)
     completed_commands = 0
     for command_info in commands:
         future = executor.submit(run_experiment, command_info['command'],
                                  conda_env=command_info['conda_env'],
                                  working_directory=command_info['working_directory'])
-        futures.append((command_info['classifier'], future))
+        future_to_classifier[future] = command_info['classifier']
+        futures.append(future)
 
-    for classifier, future in futures:
+    for future in as_completed(futures):
+        classifier, future = future_to_classifier[future]  # Get the classifier for this future
         try:
             result = future.result()
             if result is not None:
@@ -179,7 +192,12 @@ databases = {
     }
 }
 if __name__ == '__main__':
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    args = parse_args()
+    classifiers = args.classifiers.split()  # 把从命令行获取的字符串转化为列表
+    num_threads = args.num_threads  # 从命令行获取线程数
+
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        future_to_classifier = {}
         results = run_experiments(classifiers, input_folder, output_folders, databases, executor=executor)
     current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
     result_output_file = f"results_{current_time}.txt"
