@@ -11,7 +11,8 @@ import psutil
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
-
+from colorama import Fore, Style
+import logging
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run experiments with specified classifiers and thread number.")
@@ -21,6 +22,15 @@ def parse_args():
                         help="Number of threads to use.")
     return parser.parse_args()
 
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger(__name__)
+divider = '-' * 80
+
+
+# Define a helper function to print in color
+def print_color(text, color):
+    logger.info(color + text + Style.RESET_ALL)
 
 def get_memory_usage():
     process = psutil.Process(os.getpid())
@@ -29,7 +39,9 @@ def get_memory_usage():
 
 
 def run_experiment(command, conda_env=None, working_directory=None):
-    print(f"Running command: {command}")
+    print(divider)
+    print_color(f"Running command: {command}", Fore.GREEN)
+    print(divider)
     start_time = time.time()
     try:
         if conda_env:
@@ -39,6 +51,8 @@ def run_experiment(command, conda_env=None, working_directory=None):
         time.sleep(0.1)
         process_memory = psutil.Process(process.pid)
         max_memory_usage = 0
+        # Extract the software name from the command
+        software_name = command.split(' ')[0] if not conda_env else command.split(' ')[3]
         while process.poll() is None:
             mem_info = process_memory.memory_info()
             memory_usage = mem_info.rss / (1024 ** 2)  # Memory usage in MB
@@ -50,24 +64,28 @@ def run_experiment(command, conda_env=None, working_directory=None):
             # Check if there is any error output
             stderr = process.stderr.readline().decode('utf-8')
             if stderr != "":
-                process.kill()
-                raise Exception(f"Error in subprocess: {stderr}")
-
+                print(divider)
+                print(f"{software_name} STDERR: {stderr}")  # Print error message directly
+                print(divider)
             max_memory_usage = max(max_memory_usage, memory_usage)
             time.sleep(1)
+
         stdout, stderr = process.communicate()
         if process.returncode != 0:
             raise subprocess.CalledProcessError(process.returncode, command, output=stdout, stderr=stderr)
 
     except subprocess.CalledProcessError as e:
+        print(divider)
         print(f"Command execution failed: {e}")
         print(f"STDOUT: {e.output.decode('utf-8')}")
         print(f"STDERR: {e.stderr.decode('utf-8')}")
+        print(divider)
         return None
     end_time = time.time()
     elapsed_time = end_time - start_time
     memory_usage = max_memory_usage
     return elapsed_time, memory_usage
+
 
 
 
@@ -158,10 +176,11 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 elapsed_time, memory_usage = result
                 results[classifier]['total_time'] += elapsed_time
                 results[classifier]['total_memory'] += memory_usage
-                print(
-                    f"Task for {classifier} finished. Elapsed time: {elapsed_time:.2f}s, Memory usage: {memory_usage:.2f}MB")
+                print_color(
+                    f"Task for {classifier} finished. Elapsed time: {elapsed_time:.2f}s, Memory usage: {memory_usage:.2f}MB",
+                    Fore.BLUE)
         except Exception as e:
-            print(f"Error while running experiment for {classifier}: {e}")
+            print_color(f"Error while running experiment for {classifier}: {e}", Fore.RED)
         completed_commands += 1
         remaining_commands = total_commands - completed_commands
         print(f"Completed {completed_commands} of {total_commands} commands. Remaining: {remaining_commands} commands.")
