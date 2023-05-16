@@ -46,6 +46,13 @@ def run_experiment(command, conda_env=None, working_directory=None):
             for child in process_memory.children(recursive=True):
                 child_mem_info = child.memory_info()
                 memory_usage += child_mem_info.rss / (1024 ** 2)
+
+            # Check if there is any error output
+            stderr = process.stderr.readline().decode('utf-8')
+            if stderr != "":
+                process.kill()
+                raise Exception(f"Error in subprocess: {stderr}")
+
             max_memory_usage = max(max_memory_usage, memory_usage)
             time.sleep(1)
         stdout, stderr = process.communicate()
@@ -61,6 +68,7 @@ def run_experiment(command, conda_env=None, working_directory=None):
     elapsed_time = end_time - start_time
     memory_usage = max_memory_usage
     return elapsed_time, memory_usage
+
 
 
 conda_envs = {
