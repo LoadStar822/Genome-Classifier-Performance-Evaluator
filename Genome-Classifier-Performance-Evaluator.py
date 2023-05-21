@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
 from colorama import Fore, Style
 import logging
+import re
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run experiments with specified classifiers and thread number.")
@@ -39,52 +40,47 @@ def get_memory_usage():
 
 
 def run_experiment(command, conda_env=None, working_directory=None):
-    print(divider)
-    print_color(f"Running command: {command}", Fore.GREEN)
-    print(divider)
-    start_time = time.time()
-    try:
-        if conda_env:
-            command = f'conda run -n {conda_env} {command}'
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                   cwd=working_directory)
-        time.sleep(0.1)
-        process_memory = psutil.Process(process.pid)
-        max_memory_usage = 0
-        # Extract the software name from the command
-        software_name = command.split(' ')[0] if not conda_env else command.split(' ')[3]
-        while process.poll() is None:
-            mem_info = process_memory.memory_info()
-            memory_usage = mem_info.rss / (1024 ** 2)  # Memory usage in MB
-            # Include child processes in memory usage calculation
-            for child in process_memory.children(recursive=True):
-                child_mem_info = child.memory_info()
-                memory_usage += child_mem_info.rss / (1024 ** 2)
+    if conda_env:
+        command = f'conda run -n {conda_env} {command}'
 
-            # Check if there is any error output
-            stderr = process.stderr.readline().decode('utf-8')
-            if stderr != "":
-                print(divider)
-                print(f"{software_name} STDERR: {stderr}")  # Print error message directly
-                print(divider)
-            max_memory_usage = max(max_memory_usage, memory_usage)
-            time.sleep(1)
+    # Use /usr/bin/time to get time and memory usage
+    command = f'/usr/bin/time -v {command}'
 
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, command, output=stdout, stderr=stderr)
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               cwd=working_directory)
+    stdout, stderr = process.communicate()
 
-    except subprocess.CalledProcessError as e:
-        print(divider)
-        print(f"Command execution failed: {e}")
-        print(f"STDOUT: {e.output.decode('utf-8')}")
-        print(f"STDERR: {e.stderr.decode('utf-8')}")
-        print(divider)
+    if process.returncode != 0:
+        print(f"Command execution failed: {stderr.decode('utf-8')}")
         return None
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    memory_usage = max_memory_usage
-    return elapsed_time, memory_usage
+
+    # Parse /usr/bin/time output
+    time_output = stderr.decode('utf-8')
+
+    # Using regex to extract time and memory
+    time_regex = r'Elapsed \(wall clock\) time \(h:mm:ss or m:ss\): ((\d+:)?\d+:\d+\.\d+)'
+    mem_regex = r'Maximum resident set size \(kbytes\): (\d+)'
+
+    time_match = re.search(time_regex, time_output)
+    mem_match = re.search(mem_regex, time_output)
+
+    if time_match and mem_match:
+        elapsed_time_str = time_match.group(1)
+        memory_usage_kbytes = int(mem_match.group(1))
+
+        # Convert elapsed time to seconds
+        elapsed_time_parts = elapsed_time_str.split(':')
+        if len(elapsed_time_parts) == 3:
+            hours, minutes, seconds = elapsed_time_parts
+            elapsed_time = float(hours) * 3600 + float(minutes) * 60 + float(seconds)
+        else:
+            minutes, seconds = elapsed_time_parts
+            elapsed_time = float(minutes) * 60 + float(seconds)
+
+        # Convert memory usage to megabytes
+        memory_usage = memory_usage_kbytes / 1024
+
+        return elapsed_time, memory_usage
 
 
 
@@ -98,6 +94,7 @@ conda_envs = {
     'taxmaps': 'taxmaps',
     'pathseq': 'bioinformatics',
     'clark-s': 'base',
+    'centrifuge': 'base',
 }
 
 
@@ -146,6 +143,8 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 elif classifier == 'pathseq':
                     bam_file = os.path.join(bam_input_folder, f'{file_base}.bam')
                     command = f'gatk PathSeqPipelineSpark --input {bam_file} --microbe-bwa-image {databases[classifier]["microbe_bwa_image"]} --microbe-dict {databases[classifier]["microbe_dict"]} --taxonomy-file {databases[classifier]["taxonomy_file"]} --scores-output {output_file} --output {output_file.replace(".out", ".bam")}'
+                elif classifier == 'centrifuge':
+                    command = f'centrifuge -x {databases[classifier]} -1 {forward_reads} -2 {reverse_reads} -S {output_file} --threads {num_threads}'
 
                 for _ in range(num_repeats):
                     conda_env = conda_envs.get(classifier)
@@ -176,6 +175,8 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 elapsed_time, memory_usage = result
                 results[classifier]['total_time'] += elapsed_time
                 results[classifier]['total_memory'] += memory_usage
+                print(results[classifier]['total_time'])
+                print(results[classifier]['total_memory'])
                 print_color(
                     f"Task for {classifier} finished. Elapsed time: {elapsed_time:.2f}s, Memory usage: {memory_usage:.2f}MB",
                     Fore.BLUE)
@@ -201,7 +202,7 @@ def save_results_to_file(results, output_file):
 input_folder = os.path.expanduser('~/software/ART/datasets/simulated_data_new')
 bam_input_folder = os.path.expanduser('~/software/ART/datasets/bam_files')
 
-classifiers = ['clark-s', 'clark', 'krakenuniq', 'pathseq', 'kraken2', 'taxmaps', 'k-SLAM', 'megablast']
+classifiers = ['clark-s', 'clark', 'krakenuniq', 'pathseq', 'kraken2', 'taxmaps', 'k-SLAM', 'megablast', 'centrifuge']
 output_folders = {
     'kraken2': os.path.expanduser('~/software/ART/datasets/kraken2_results'),
     'clark': os.path.expanduser('~/software/ART/datasets/clark_results'),
@@ -210,7 +211,8 @@ output_folders = {
     'k-SLAM': os.path.expanduser('~/software/ART/datasets/k-SLAM_results'),
     'taxmaps': os.path.expanduser('~/software/ART/datasets/taxmaps_results'),
     'pathseq': os.path.expanduser('~/software/ART/datasets/pathseq_results'),
-    'clark-s': os.path.expanduser('~/software/ART/datasets/clark-s_results')
+    'clark-s': os.path.expanduser('~/software/ART/datasets/clark-s_results'),
+    'centrifuge': os.path.expanduser('~/software/ART/datasets/centrifuge_results')
 }
 databases = {
     'kraken2': os.path.expanduser('~/software/kraken2/standard'),
@@ -224,7 +226,8 @@ databases = {
         'microbe_bwa_image': os.path.expanduser('~/software/pathseq/pathseq_microbe.fa.img'),
         'microbe_dict': os.path.expanduser('~/software/pathseq/pathseq_microbe.dict'),
         'taxonomy_file': os.path.expanduser('~/software/pathseq/pathseq_taxonomy.db')
-    }
+    },
+    'centrifuge': os.path.expanduser('~/software/centrifuge-master/refseq/p+h+v')
 }
 if __name__ == '__main__':
     args = parse_args()
