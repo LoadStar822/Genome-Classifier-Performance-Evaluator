@@ -95,6 +95,7 @@ conda_envs = {
     'pathseq': 'bioinformatics',
     'clark-s': 'base',
     'centrifuge': 'base',
+    'diamond': 'bioinformatics',
 }
 
 
@@ -145,6 +146,8 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                     command = f'gatk PathSeqPipelineSpark --input {bam_file} --microbe-bwa-image {databases[classifier]["microbe_bwa_image"]} --microbe-dict {databases[classifier]["microbe_dict"]} --taxonomy-file {databases[classifier]["taxonomy_file"]} --scores-output {output_file} --output {output_file.replace(".out", ".bam")}'
                 elif classifier == 'centrifuge':
                     command = f'centrifuge -x {databases[classifier]} -1 {forward_reads} -2 {reverse_reads} -S {output_file} --threads {num_threads}'
+                elif classifier == 'diamond':
+                    command = f'diamond blastp -d {databases[classifier]} -q {protein_folder} -o {output_file} --threads {num_threads}'
 
                 for _ in range(num_repeats):
                     conda_env = conda_envs.get(classifier)
@@ -175,8 +178,6 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 elapsed_time, memory_usage = result
                 results[classifier]['total_time'] += elapsed_time
                 results[classifier]['total_memory'] += memory_usage
-                print(results[classifier]['total_time'])
-                print(results[classifier]['total_memory'])
                 print_color(
                     f"Task for {classifier} finished. Elapsed time: {elapsed_time:.2f}s, Memory usage: {memory_usage:.2f}MB",
                     Fore.BLUE)
@@ -201,8 +202,9 @@ def save_results_to_file(results, output_file):
 
 input_folder = os.path.expanduser('~/software/ART/datasets/simulated_data_new')
 bam_input_folder = os.path.expanduser('~/software/ART/datasets/bam_files')
+protein_folder = os.path.expanduser('~/software/ART/datasets/simulated_protein')
 
-classifiers = ['clark-s', 'clark', 'krakenuniq', 'pathseq', 'kraken2', 'taxmaps', 'k-SLAM', 'megablast', 'centrifuge']
+classifiers = ['clark-s', 'clark', 'krakenuniq', 'pathseq', 'kraken2', 'taxmaps', 'k-SLAM', 'megablast', 'centrifuge', 'diamond']
 output_folders = {
     'kraken2': os.path.expanduser('~/software/ART/datasets/kraken2_results'),
     'clark': os.path.expanduser('~/software/ART/datasets/clark_results'),
@@ -212,7 +214,8 @@ output_folders = {
     'taxmaps': os.path.expanduser('~/software/ART/datasets/taxmaps_results'),
     'pathseq': os.path.expanduser('~/software/ART/datasets/pathseq_results'),
     'clark-s': os.path.expanduser('~/software/ART/datasets/clark-s_results'),
-    'centrifuge': os.path.expanduser('~/software/ART/datasets/centrifuge_results')
+    'centrifuge': os.path.expanduser('~/software/ART/datasets/centrifuge_results'),
+    'diamond': os.path.expanduser('~/software/ART/datasets/diamond_results')
 }
 databases = {
     'kraken2': os.path.expanduser('~/software/kraken2/standard'),
@@ -227,7 +230,8 @@ databases = {
         'microbe_dict': os.path.expanduser('~/software/pathseq/pathseq_microbe.dict'),
         'taxonomy_file': os.path.expanduser('~/software/pathseq/pathseq_taxonomy.db')
     },
-    'centrifuge': os.path.expanduser('~/software/centrifuge-master/refseq/p+h+v')
+    'centrifuge': os.path.expanduser('~/software/centrifuge-master/refseq/p+h+v'),
+    'diamond': os.path.expanduser('~/software/diamond/nr.dmnd')
 }
 if __name__ == '__main__':
     args = parse_args()
