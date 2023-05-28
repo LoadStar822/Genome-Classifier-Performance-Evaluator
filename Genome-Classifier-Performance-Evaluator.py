@@ -15,6 +15,7 @@ from colorama import Fore, Style
 import logging
 import re
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Run experiments with specified classifiers and thread number.")
     parser.add_argument('-c', '--classifiers', type=str, required=True, nargs='+',
@@ -22,6 +23,7 @@ def parse_args():
     parser.add_argument('-t', '--threads', type=int, default=1,
                         help="Number of threads to use.")
     return parser.parse_args()
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -32,6 +34,7 @@ divider = '-' * 80
 # Define a helper function to print in color
 def print_color(text, color):
     logger.info(color + text + Style.RESET_ALL)
+
 
 def get_memory_usage():
     process = psutil.Process(os.getpid())
@@ -83,8 +86,6 @@ def run_experiment(command, conda_env=None, working_directory=None):
         return elapsed_time, memory_usage
 
 
-
-
 conda_envs = {
     'kraken2': 'base',
     'clark': 'base',
@@ -96,6 +97,7 @@ conda_envs = {
     'clark-s': 'base',
     'centrifuge': 'base',
     'diamond': 'bioinformatics',
+    'kaiju': 'bioinformatics',
 }
 
 
@@ -148,6 +150,8 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                     command = f'centrifuge -x {databases[classifier]} -1 {forward_reads} -2 {reverse_reads} -S {output_file} --threads {num_threads}'
                 elif classifier == 'diamond':
                     command = f'diamond blastp -d {databases[classifier]} -q {protein_folder} -o {output_file} --threads {num_threads}'
+                elif classifier == 'kaiju':
+                    command = f'kaiju -t {databases[classifier]["nodes"]} -f {databases[classifier]["fmi"]} -i {forward_reads} -j {reverse_reads} -o {output_file} -z {num_threads}'
 
                 for _ in range(num_repeats):
                     conda_env = conda_envs.get(classifier)
@@ -204,7 +208,8 @@ input_folder = os.path.expanduser('~/software/ART/datasets/simulated_data_new')
 bam_input_folder = os.path.expanduser('~/software/ART/datasets/bam_files')
 protein_folder = os.path.expanduser('~/software/ART/datasets/simulated_protein')
 
-classifiers = ['clark-s', 'clark', 'krakenuniq', 'pathseq', 'kraken2', 'taxmaps', 'k-SLAM', 'megablast', 'centrifuge', 'diamond']
+classifiers = ['kaiju', 'clark-s', 'clark', 'krakenuniq', 'pathseq', 'kraken2', 'taxmaps',
+               'k-SLAM', 'megablast', 'centrifuge', 'diamond']
 output_folders = {
     'kraken2': os.path.expanduser('~/software/ART/datasets/kraken2_results'),
     'clark': os.path.expanduser('~/software/ART/datasets/clark_results'),
@@ -215,7 +220,8 @@ output_folders = {
     'pathseq': os.path.expanduser('~/software/ART/datasets/pathseq_results'),
     'clark-s': os.path.expanduser('~/software/ART/datasets/clark-s_results'),
     'centrifuge': os.path.expanduser('~/software/ART/datasets/centrifuge_results'),
-    'diamond': os.path.expanduser('~/software/ART/datasets/diamond_results')
+    'diamond': os.path.expanduser('~/software/ART/datasets/diamond_results'),
+    'kaiju': os.path.expanduser('~/software/ART/datasets/kaiju_results')
 }
 databases = {
     'kraken2': os.path.expanduser('~/software/kraken2/standard'),
@@ -231,7 +237,11 @@ databases = {
         'taxonomy_file': os.path.expanduser('~/software/pathseq/pathseq_taxonomy.db')
     },
     'centrifuge': os.path.expanduser('~/software/centrifuge-master/refseq/p+h+v'),
-    'diamond': os.path.expanduser('~/software/diamond/nr.dmnd')
+    'diamond': os.path.expanduser('~/software/diamond/nr.dmnd'),
+    'kaiju': {
+        'nodes': os.path.expanduser('~/software/kaiju/KAIJUdb/node.dmp'),
+        'fmi': os.path.expanduser('~/software/kaiju/KAIJUdb/nr/kaiju_db_nr.fmi'),
+    }
 }
 if __name__ == '__main__':
     args = parse_args()
