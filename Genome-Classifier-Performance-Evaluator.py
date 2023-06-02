@@ -98,6 +98,7 @@ conda_envs = {
     'centrifuge': 'base',
     'diamond': 'bioinformatics',
     'kaiju': 'bioinformatics',
+    'mmseqs2': 'bioinformatics',
 }
 
 
@@ -149,9 +150,13 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 elif classifier == 'centrifuge':
                     command = f'centrifuge -x {databases[classifier]} -1 {forward_reads} -2 {reverse_reads} -S {output_file} --threads {num_threads}'
                 elif classifier == 'diamond':
-                    command = f'diamond blastp -d {databases[classifier]} -q {protein_folder} -o {output_file} --threads {num_threads}'
+                    protein_fastq = os.path.join(protein_folder, f'{file_base}_protein.fasta')
+                    command = f'diamond blastp -d {databases[classifier]} -q {protein_fastq} -o {output_file} --threads {num_threads}'
                 elif classifier == 'kaiju':
                     command = f'kaiju -t {databases[classifier]["nodes"]} -f {databases[classifier]["fmi"]} -i {forward_reads} -j {reverse_reads} -o {output_file} -z {num_threads}'
+                elif classifier == 'mmseqs2':
+                    protein_fastq = os.path.join(protein_folder, f'{file_base}_protein.fasta')
+                    command = f'mmseqs easy-search {protein_fastq} {databases[classifier]} {output_file} tmp'
 
                 for _ in range(num_repeats):
                     conda_env = conda_envs.get(classifier)
@@ -209,7 +214,7 @@ bam_input_folder = os.path.expanduser('~/software/ART/datasets/bam_files')
 protein_folder = os.path.expanduser('~/software/ART/datasets/simulated_protein')
 
 classifiers = ['kaiju', 'clark-s', 'clark', 'krakenuniq', 'pathseq', 'kraken2', 'taxmaps',
-               'k-SLAM', 'megablast', 'centrifuge', 'diamond']
+               'k-SLAM', 'megablast', 'centrifuge', 'diamond', 'mmseqs2']
 output_folders = {
     'kraken2': os.path.expanduser('~/software/ART/datasets/kraken2_results'),
     'clark': os.path.expanduser('~/software/ART/datasets/clark_results'),
@@ -221,7 +226,8 @@ output_folders = {
     'clark-s': os.path.expanduser('~/software/ART/datasets/clark-s_results'),
     'centrifuge': os.path.expanduser('~/software/ART/datasets/centrifuge_results'),
     'diamond': os.path.expanduser('~/software/ART/datasets/diamond_results'),
-    'kaiju': os.path.expanduser('~/software/ART/datasets/kaiju_results')
+    'kaiju': os.path.expanduser('~/software/ART/datasets/kaiju_results'),
+    'mmseqs2': os.path.expanduser('~/software/ART/datasets/mmseqs2_results')
 }
 databases = {
     'kraken2': os.path.expanduser('~/software/kraken2/standard'),
@@ -241,7 +247,8 @@ databases = {
     'kaiju': {
         'nodes': os.path.expanduser('~/software/kaiju/KAIJUdb/node.dmp'),
         'fmi': os.path.expanduser('~/software/kaiju/KAIJUdb/nr/kaiju_db_nr.fmi'),
-    }
+    },
+    'mmseqs2': os.path.expanduser('~/software/mmseqs2/nr')
 }
 if __name__ == '__main__':
     args = parse_args()
