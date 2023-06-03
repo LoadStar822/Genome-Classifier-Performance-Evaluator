@@ -143,6 +143,7 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 elif classifier == 'megablast':
                     forward_reads_fasta = os.path.join(input_folder, f'{file_base}1.fasta')
                     command = f'blastn -task megablast -query {forward_reads_fasta} -db {databases[classifier]} -out {output_file} -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids sscinames scomnames stitle"'
+                    working_directory = os.path.expanduser('~/software/MegaBLAST')
                 elif classifier == 'k-SLAM':
                     command = f'~/software/k-SLAM/SLAM --db={databases[classifier]} --output-file={output_file} {forward_reads} {reverse_reads}'
                 elif classifier == 'taxmaps':
