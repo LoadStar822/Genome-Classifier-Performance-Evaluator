@@ -187,6 +187,8 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 elapsed_time, memory_usage = result
                 results[classifier]['total_time'] += elapsed_time
                 results[classifier]['total_memory'] += memory_usage
+                print(results[classifier]['total_time'])
+                print(results[classifier]['total_memory'])
                 print_color(
                     f"Task for {classifier} finished. Elapsed time: {elapsed_time:.2f}s, Memory usage: {memory_usage:.2f}MB",
                     Fore.BLUE)
