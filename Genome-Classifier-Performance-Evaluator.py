@@ -53,6 +53,9 @@ def run_experiment(command, conda_env=None, working_directory=None):
                                cwd=working_directory)
     stdout, stderr = process.communicate()
 
+    print(f"Command stdout: {stdout.decode('utf-8')}")
+    print(f"Command stderr: {stderr.decode('utf-8')}")
+
     if process.returncode != 0:
         print(f"Command execution failed: {stderr.decode('utf-8')}")
         return None
