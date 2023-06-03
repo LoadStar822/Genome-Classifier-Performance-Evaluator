@@ -187,8 +187,6 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                 elapsed_time, memory_usage = result
                 results[classifier]['total_time'] += elapsed_time
                 results[classifier]['total_memory'] += memory_usage
-                print(results[classifier]['total_time'])
-                print(results[classifier]['total_memory'])
                 print_color(
                     f"Task for {classifier} finished. Elapsed time: {elapsed_time:.2f}s, Memory usage: {memory_usage:.2f}MB",
                     Fore.BLUE)
@@ -196,6 +194,8 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
             print_color(f"Error while running experiment for {classifier}: {e}", Fore.RED)
         completed_commands += 1
         remaining_commands = total_commands - completed_commands
+        print(results[classifier]['total_time'])
+        print(results[classifier]['total_memory'])
         print(f"Completed {completed_commands} of {total_commands} commands. Remaining: {remaining_commands} commands.")
 
     return results
