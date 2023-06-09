@@ -53,8 +53,8 @@ def run_experiment(command, conda_env=None, working_directory=None):
                                cwd=working_directory)
     stdout, stderr = process.communicate()
 
-    print(f"Command stdout: {stdout.decode('utf-8')}")
-    print(f"Command stderr: {stderr.decode('utf-8')}")
+    # print(f"Command stdout: {stdout.decode('utf-8')}")
+    # print(f"Command stderr: {stderr.decode('utf-8')}")
 
     if process.returncode != 0:
         print(f"Command execution failed: {stderr.decode('utf-8')}")
@@ -64,11 +64,12 @@ def run_experiment(command, conda_env=None, working_directory=None):
     time_output = stderr.decode('utf-8')
 
     # Using regex to extract time and memory
-    time_regex = r'Elapsed \(wall clock\) time \(h:mm:ss or m:ss\): ((\d+:)?\d+:\d+\.\d+)'
+    time_regex = r'Elapsed \(wall clock\) time \(h:mm:ss or m:ss\): ((\d+:)?\d+:\d+(\.\d+)?)'
     mem_regex = r'Maximum resident set size \(kbytes\): (\d+)'
 
     time_match = re.search(time_regex, time_output)
     mem_match = re.search(mem_regex, time_output)
+
 
     if time_match and mem_match:
         elapsed_time_str = time_match.group(1)
@@ -108,7 +109,8 @@ conda_envs = {
 def run_experiments(classifiers, input_folder, output_folders, databases, num_threads=1, num_repeats=1, executor=None):
     results = {classifier: {'total_time': 0, 'total_memory': 0} for classifier in classifiers}
     commands = []
-
+    current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+    result_output_file = f"results_{current_time}.txt"
     for file_prefix in os.listdir(input_folder):
         if file_prefix.endswith('1.fq'):
             file_base = file_prefix[:-4]
@@ -201,6 +203,7 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
         print(results[classifier]['total_time'])
         print(results[classifier]['total_memory'])
         print(f"Completed {completed_commands} of {total_commands} commands. Remaining: {remaining_commands} commands.")
+        save_results_to_file(results, result_output_file)
 
     return results
 
@@ -251,7 +254,7 @@ databases = {
     'centrifuge': os.path.expanduser('~/software/centrifuge-master/refseq/p+h+v'),
     'diamond': os.path.expanduser('~/software/diamond/nr.dmnd'),
     'kaiju': {
-        'nodes': os.path.expanduser('~/software/kaiju/KAIJUdb/node.dmp'),
+        'nodes': os.path.expanduser('~/software/kaiju/KAIJUdb/nodes.dmp'),
         'fmi': os.path.expanduser('~/software/kaiju/KAIJUdb/nr/kaiju_db_nr.fmi'),
     },
     'mmseqs2': os.path.expanduser('~/software/mmseqs2/nr')
@@ -264,9 +267,6 @@ if __name__ == '__main__':
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         future_to_classifier = {}
         results = run_experiments(classifiers, input_folder, output_folders, databases, executor=executor)
-    current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
-    result_output_file = f"results_{current_time}.txt"
-    save_results_to_file(results, result_output_file)
 
     for classifier in classifiers:
         total_time = results[classifier]['total_time']
