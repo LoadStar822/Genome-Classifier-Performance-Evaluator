@@ -44,7 +44,7 @@ def get_memory_usage():
 
 def run_experiment(command, conda_env=None, working_directory=None):
     if conda_env:
-        command = f'conda run -n {conda_env} {command}'
+        command = f'/dev/disk5/zqtqz/miniconda3/bin/conda run -n {conda_env} {command}'
 
     # Use /usr/bin/time to get time and memory usage
     command = f'/usr/bin/time -v {command}'
@@ -100,10 +100,10 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
     current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
     result_output_file = f"results_{current_time}.txt"
     for file_prefix in os.listdir(input_folder):
-        if file_prefix.endswith('1.fq'):
-            file_base = file_prefix[:-4]
-            forward_reads = os.path.join(input_folder, f'{file_base}1.fq')
-            reverse_reads = os.path.join(input_folder, f'{file_base}2.fq')
+        if file_prefix.endswith('1.fasta'):
+            file_base = file_prefix[:-7]
+            forward_reads = os.path.join(input_folder, f'{file_base}1.fasta')
+            reverse_reads = os.path.join(input_folder, f'{file_base}2.fasta')
 
             for classifier in classifiers:
                 output_folder = output_folders[classifier]
@@ -120,6 +120,7 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                     continue
 
                 working_directory = os.path.expanduser('/dev/disk5/zqtqz')
+
                 if classifier == 'bertax':
                     command = f'bertax {forward_reads} -o {output_file}'
 
