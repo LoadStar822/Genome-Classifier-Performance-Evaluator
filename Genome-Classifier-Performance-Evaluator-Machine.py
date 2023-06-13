@@ -119,7 +119,7 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                     print(f"Skipping {file_base} for {classifier} because output already exists")
                     continue
 
-                working_directory = os.path.expanduser('~')
+                working_directory = os.path.expanduser('/dev/disk5/zqtqz')
                 if classifier == 'bertax':
                     command = f'bertax {forward_reads} -o {output_file}'
 
@@ -177,14 +177,14 @@ def save_results_to_file(results, output_file):
     print(f"Results saved to {output_file}")
 
 
-input_folder = os.path.expanduser('~/datasets/zong')
+input_folder = os.path.expanduser('/dev/disk5/zqtqz/datasets/zong')
 
 classifiers = ['bertax']
 output_folders = {
-    'bertax': os.path.expanduser('~/project/zongshu/result/bertax_results'),
+    'bertax': os.path.expanduser('/dev/disk5/zqtqz/project/zongshu/result/bertax_results'),
 }
 databases = {
-    'bertax': os.path.expanduser('~/software/berTax/berTax_db'),
+    'bertax': os.path.expanduser('/dev/disk5/zqtqz/software/berTax/berTax_db'),
 }
 if __name__ == '__main__':
     args = parse_args()
