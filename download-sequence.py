@@ -4,76 +4,51 @@ Author  : Tian
 Time    : 2023-04-22 13:29
 Desc    :This script downloads the FASTA sequences of a list of organisms.
 """
-from Bio import Entrez
-
-# Set your email address to be used in the Entrez API
-Entrez.email = "your.email@example.com"
-
-# Define a dictionary of organisms and their associated taxonomy group (bacteria or archaea)
-organisms = {
-    "Escherichia coli": "bacteria",
-    "Staphylococcus aureus": "bacteria",
-    "Streptococcus pyogenes": "bacteria",
-    "Bacillus subtilis": "bacteria",
-    "Pseudomonas aeruginosa": "bacteria",
-    "Mycobacterium tuberculosis": "bacteria",
-    "Lactobacillus acidophilus": "bacteria",
-    "Clostridium difficile": "bacteria",
-    "Helicobacter pylori": "bacteria",
-    "Salmonella enterica": "bacteria",
-    "Vibrio cholerae": "bacteria",
-    "Shigella flexneri": "bacteria",
-    "Campylobacter jejuni": "bacteria",
-    "Listeria monocytogenes": "bacteria",
-    "Neisseria meningitidis": "bacteria",
-    "Haemophilus influenzae": "bacteria",
-    "Corynebacterium diphtheriae": "bacteria",
-    "Legionella pneumophila": "bacteria",
-    "Enterococcus faecalis": "bacteria",
-    "Chlamydia trachomatis": "bacteria",
-    "Methanocaldococcus jannaschii": "archaea",
-    "Methanosarcina mazei": "archaea",
-    "Pyrococcus furiosus": "archaea",
-    "Sulfolobus solfataricus": "archaea",
-    "Halobacterium salinarum": "archaea",
-    "Thermococcus kodakarensis": "archaea",
-    "Methanobrevibacter smithii": "archaea",
-    "Nanoarchaeum equitans": "archaea",
-    "Aeropyrum pernix": "archaea",
-    "Methanococcus maripaludis": "archaea"
-}
+import os
+from Bio import Entrez, SeqIO
+from io import StringIO
 
 
-# Define a function to search for an organism in the given database
-def search_organism(db, organism):
-    term = f"{organism}[Organism]"
-    handle = Entrez.esearch(db=db, term=term, retmax=1)
-    return Entrez.read(handle)
+Entrez.email = ''
+Entrez.api_key = ''
 
+species_list = [
+    'Escherichia coli', 'Staphylococcus aureus', 'Streptococcus pyogenes',
+    'Bacillus subtilis', 'Pseudomonas aeruginosa', 'Mycobacterium tuberculosis',
+    'Lactobacillus acidophilus', 'Clostridium difficile', 'Helicobacter pylori',
+    'Salmonella enterica', 'Vibrio cholerae', 'Shigella flexneri',
+    'Campylobacter jejuni', 'Listeria monocytogenes', 'Neisseria meningitidis',
+    'Haemophilus influenzae', 'Corynebacterium diphtheriae', 'Legionella pneumophila',
+    'Enterococcus faecalis', 'Chlamydia trachomatis', 'Methanocaldococcus jannaschii',
+    'Methanosarcina mazei', 'Pyrococcus furiosus', 'Sulfolobus solfataricus',
+    'Halobacterium salinarum', 'Thermococcus kodakarensis', 'Methanobrevibacter smithii',
+    'Nanoarchaeum equitans', 'Aeropyrum pernix', 'Methanococcus maripaludis'
+]
 
-# Define a function to fetch a sequence from the database using its ID
-def fetch_sequence(db, seq_id):
-    handle = Entrez.efetch(db=db, id=seq_id, rettype="fasta", retmode="text")
-    return handle.read()
+output_folder = 'fasta_sequences'
 
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
 
-# Define a function to save a FASTA sequence to a file
-def save_fasta_file(organism, fasta_seq):
-    with open(f"{organism}.fasta", "w") as f:
-        f.write(fasta_seq)
+for species in species_list:
+    print(f'Downloading {species}...')
+    search_query = f'"{species}"[Organism] AND "complete genome"[title]'
+    search_results = Entrez.read(Entrez.esearch(db='nucleotide', term=search_query, retmax=1))
 
+    if search_results['Count'] != '0':
+        sequence_id = search_results['IdList'][0]
+        record = Entrez.efetch(db='nucleotide', id=sequence_id, rettype='fasta', retmode='text')
+        fasta = record.read()
 
-# Define a function to download sequences for a list of organisms
-def download_organism_sequences(organisms):
-    for organism, db in organisms.items():
-        record = search_organism(db, organism)
-        if record["IdList"]:
-            seq_id = record["IdList"][0]
-            fasta_seq = fetch_sequence(db, seq_id)
-            save_fasta_file(organism, fasta_seq)
-            print(f"Downloaded {organism}")
-        else:
-            print(f"No record found for {organism}")
+        # Extract strain or variant information
+        fasta_parsed = SeqIO.read(StringIO(fasta), "fasta")
+        description_parts = fasta_parsed.description.split(' ')
+        strain_or_variant = ' '.join(description_parts[1:]) if len(description_parts) > 1 else 'Unknown'
+        print(f'Downloaded strain or variant: {strain_or_variant}')
 
-
-download_organism_sequences(organisms)
+        output_file = os.path.join(output_folder, f'{species.replace(" ", "_")}.fasta')
+        with open(output_file, 'w') as f:
+            f.write(fasta)
+        print(f'Successfully downloaded {species}.')
+    else:
+        print(f'No complete genome found for {species}.')
