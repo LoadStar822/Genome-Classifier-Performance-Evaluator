@@ -1,7 +1,7 @@
 # coding:utf-8
 """
 Author  : Tian
-Time    : 2023-06-17 22:38
+Time    : 2023-06-18 15:25
 Desc:
 """
 from Bio import Entrez
@@ -166,7 +166,7 @@ summary_row = {
 
 file_results_list.append(summary_row)
 
-with open('krakenuniq_results_genus.csv', 'w', newline='') as f:
+with open('kraken2_results_genus.csv', 'w', newline='') as f:
     fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications',
                   'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
     writer = csv.DictWriter(f, fieldnames=fieldnames)

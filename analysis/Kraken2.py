@@ -1,7 +1,7 @@
 # coding:utf-8
 """
 Author  : Tian
-Time    : 2023-06-17 14:14
+Time    : 2023-06-18 15:23
 Desc:
 """
 from Bio import Entrez
@@ -35,7 +35,7 @@ def analyze_file(filename, species_id, results):
 
     return results
 
-folder_path = '/home/zqtianqinzhong/software/ART/datasets/krakenuniq_results'
+folder_path = '/home/zqtianqinzhong/software/ART/datasets/kraken2_results'
 
 file_results_list = []
 
@@ -105,7 +105,7 @@ summary_row = {
 
 file_results_list.append(summary_row)
 
-with open('krakenuniq_results.csv', 'w', newline='') as f:
+with open('kraken2_results.csv', 'w', newline='') as f:
     fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications', 'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
     writer = csv.DictWriter(f, fieldnames=fieldnames)
 
