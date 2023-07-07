@@ -4,6 +4,8 @@ Author  : Tian
 Time    : 2023-06-18 15:53
 Desc:
 """
+from collections import defaultdict
+
 from Bio import Entrez
 import os
 import re
@@ -18,9 +20,18 @@ def get_taxid(species_name):
     return record["IdList"][0]
 
 def analyze_file(filename, species_id, results):
+    groups = {}
     with open(filename, 'r') as f:
+        next(f)
         for line in f:
             line_parts = line.strip().split('\t')
+            group_key = line_parts[0]
+
+            if group_key not in groups:
+                groups[group_key] = line_parts
+            else:
+                continue
+
             classification_status = line_parts[1]
 
             if classification_status == 'unclassified':

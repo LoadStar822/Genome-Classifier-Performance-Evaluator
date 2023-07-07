@@ -1,7 +1,7 @@
 # coding:utf-8
 """
 Author  : Tian
-Time    : 2023-06-19 10:05
+Time    : 2023-06-30 15:20
 Desc:
 """
 from Bio import Entrez
@@ -58,45 +58,41 @@ def get_genus_taxids(species_ids):
 def collect_taxids(folder_path):
     taxids = set()
 
-    for filename in os.listdir(folder_path):
-        with open(os.path.join(folder_path, filename), 'r') as f:
-            next(f)
-            for line in f:
-                line_parts = line.strip().split(',')
-                classification_status = line_parts[3]
+    for root, dirs, files in os.walk(folder_path):
+        for filename in files:
+            if filename.endswith('.summary'):  # This ensures we're only dealing with the .summary files
+                full_file_path = os.path.join(root, filename)
+                with open(full_file_path) as f:
+                    for line in f:
+                        line_parts = line.strip().split('\t')
+                        classification_status = line_parts[0]
 
-                if classification_status != 'NA':
-                    taxids.add(line_parts[3])
+                        if classification_status != '-' or classification_status != '0':
+                            taxids.add(line_parts[0])
 
     return list(taxids)
 
 
 def analyze_file(filename, taxid_to_genus, results, genus_id):
-    base_name = os.path.basename(filename).replace('_clark-s.out.csv', '1.fasta')
-    fasta_file = os.path.join('/home/zqtianqinzhong/software/ART/datasets/simulated_data_new', base_name)
     with open(filename, 'r') as f:
-        next(f)
         for line in f:
-            line_parts = line.strip().split(',')
-            classification_status = line_parts[3]
+            line_parts = line.strip().split('\t')
+            classification_status = line_parts[0]
 
-            if classification_status == 'NA':
-                results['total_unclassified'] += 1
+            if classification_status == '-' or classification_status == '0':
+                results['total_unclassified'] += int(line_parts[4])
             else:
-                results['total_classified'] += 1
-                classification_id = taxid_to_genus.get(line_parts[3])
+                results['total_classified'] += int(line_parts[4])
+                classification_id = taxid_to_genus.get(line_parts[0])
                 if classification_id == genus_id:
-                    results['correct_classifications'] += 1
+                    results['correct_classifications'] += int(line_parts[4])
                 else:
-                    results['incorrect_classifications'] += 1
-    with open(fasta_file, 'r') as f:
-        fasta_lines = sum(1 for _ in f)
-    results['total_unclassified'] = fasta_lines/2 - results['total_classified']
+                    results['incorrect_classifications'] += int(line_parts[4])
 
     return results
 
 
-folder_path = '/home/zqtianqinzhong/software/ART/datasets/clark-s_results'
+folder_path = '/home/zqtianqinzhong/software/ART/datasets/taxmaps_results'
 
 file_results_list = []
 
@@ -110,45 +106,48 @@ global_counter = {
 taxids = collect_taxids(folder_path)
 taxid_to_genus = get_genus_taxids(taxids)
 
-for filename in os.listdir(folder_path):
-    species_name = re.match(r'(.+?)_HS', filename).group(1)
+for root, dirs, files in os.walk(folder_path):
+    for filename in files:
+        if filename.endswith('.summary'):  # This ensures we're only dealing with the .summary files
+            full_file_path = os.path.join(root, filename)
+            species_name = re.match(r'(.+?)_HS', filename).group(1)
 
-    species_id = get_taxid(species_name)
-    genus_id = taxid_to_genus.get(species_id)
+            species_id = get_taxid(species_name)
+            genus_id = taxid_to_genus.get(species_id)
 
-    file_results = {
-        'filename': filename,
-        'total_classified': 0,
-        'total_unclassified': 0,
-        'correct_classifications': 0,
-        'incorrect_classifications': 0
-    }
+            file_results = {
+                'filename': filename,
+                'total_classified': 0,
+                'total_unclassified': 0,
+                'correct_classifications': 0,
+                'incorrect_classifications': 0
+            }
 
-    file_results = analyze_file(os.path.join(folder_path, filename), taxid_to_genus, file_results, genus_id)
+            file_results = analyze_file(full_file_path, taxid_to_genus, file_results, genus_id)
 
-    print(file_results)
+            print(file_results)
 
-    if file_results['correct_classifications'] >= 0:
-        TP = file_results['correct_classifications']
-        FP = file_results['incorrect_classifications']
-        FN = file_results['total_unclassified']
+            if file_results['correct_classifications'] >= 0:
+                TP = file_results['correct_classifications']
+                FP = file_results['incorrect_classifications']
+                FN = file_results['total_unclassified']
 
-        precision = TP / (TP + FP) if TP + FP > 0 else 0
-        recall = TP / (TP + FN) if TP + FN > 0 else 0
-        f1_score = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0
-        accuracy = TP / (TP + FP + FN) if TP + FP + FN > 0 else 0
+                precision = TP / (TP + FP) if TP + FP > 0 else 0
+                recall = TP / (TP + FN) if TP + FN > 0 else 0
+                f1_score = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0
+                accuracy = TP / (TP + FP + FN) if TP + FP + FN > 0 else 0
 
-        file_results.update({
-            'precision': precision,
-            'recall': recall,
-            'f1_score': f1_score,
-            'accuracy': accuracy
-        })
+                file_results.update({
+                    'precision': precision,
+                    'recall': recall,
+                    'f1_score': f1_score,
+                    'accuracy': accuracy
+                })
 
-        file_results_list.append(file_results)
+                file_results_list.append(file_results)
 
-        for key in global_counter.keys():
-            global_counter[key] += file_results[key]
+                for key in global_counter.keys():
+                    global_counter[key] += file_results[key]
 
 TP = global_counter['correct_classifications']
 FP = global_counter['incorrect_classifications']
@@ -173,7 +172,7 @@ summary_row = {
 
 file_results_list.append(summary_row)
 
-with open('clark-s_results_genus.csv', 'w', newline='') as f:
+with open('taxmaps_results_genus.csv', 'w', newline='') as f:
     fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications',
                   'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
     writer = csv.DictWriter(f, fieldnames=fieldnames)

@@ -157,12 +157,13 @@ def run_experiments(classifiers, input_folder, output_folders, databases, num_th
                     command = f'centrifuge -x {databases[classifier]} -1 {forward_reads} -2 {reverse_reads} -S {output_file} --threads {num_threads}'
                 elif classifier == 'diamond':
                     protein_fastq = os.path.join(protein_folder, f'{file_base}_protein.fasta')
-                    command = f'diamond blastp -d {databases[classifier]} -q {protein_fastq} -o {output_file} --threads {num_threads}'
+                    command = f'diamond blastp -d {databases[classifier]} -q {protein_fastq} -o {output_file} --threads {num_threads} --outfmt 6 staxids'
                 elif classifier == 'kaiju':
                     command = f'kaiju -t {databases[classifier]["nodes"]} -f {databases[classifier]["fmi"]} -i {forward_reads} -j {reverse_reads} -o {output_file} -z {num_threads}'
                 elif classifier == 'mmseqs2':
                     protein = os.path.join(protein_folder, f'{file_base}_proteinDB')
                     command = f'mmseqs taxonomy {protein} {databases[classifier]} {output_file} tmp/{file_base}'
+
 
                 for _ in range(num_repeats):
                     conda_env = conda_envs.get(classifier)

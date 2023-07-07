@@ -18,6 +18,8 @@ def get_taxid(species_name):
     return record["IdList"][0]
 
 def analyze_file(filename, species_id, results):
+    base_name = os.path.basename(filename).replace('_clark.out.csv', '1.fasta')
+    fasta_file = os.path.join('/home/zqtianqinzhong/software/ART/datasets/simulated_data_new', base_name)
     with open(filename, 'r') as f:
         next(f)
         for line in f:
@@ -33,6 +35,10 @@ def analyze_file(filename, species_id, results):
                     results['correct_classifications'] += 1
                 else:
                     results['incorrect_classifications'] += 1
+
+    with open(fasta_file, 'r') as f:
+        fasta_lines = sum(1 for _ in f)
+    results['total_unclassified'] = fasta_lines/2 - results['total_classified']
 
     return results
 

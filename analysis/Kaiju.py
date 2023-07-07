@@ -1,14 +1,15 @@
 # coding:utf-8
 """
 Author  : Tian
-Time    : 2023-06-18 15:25
+Time    : 2023-06-23 12:27
 Desc:
 """
+import time
+
 from Bio import Entrez
 import os
 import re
 import csv
-import time
 
 Entrez.email = ""
 
@@ -32,45 +33,7 @@ def get_taxid(species_name):
     return record["IdList"][0]
 
 
-def get_genus_taxids(species_ids):
-    handle = safe_entrez_request(Entrez.efetch, db="taxonomy", id=species_ids)
-    records = Entrez.read(handle)
-    handle.close()
-
-    taxid_to_genus = {}
-    for record in records:
-        if record["Rank"] == "genus":
-            taxid_to_genus[record["TaxId"]] = record["TaxId"]
-        else:
-            genus_taxid = None
-            if "LineageEx" in record:
-                for lineage in record["LineageEx"]:
-                    if lineage["Rank"] == "genus":
-                        genus_taxid = lineage["TaxId"]
-                        break
-            taxid_to_genus[record["TaxId"]] = genus_taxid
-
-    return taxid_to_genus
-
-
-
-
-def collect_taxids(folder_path):
-    taxids = set()
-
-    for filename in os.listdir(folder_path):
-        with open(os.path.join(folder_path, filename), 'r') as f:
-            for line in f:
-                line_parts = line.strip().split('\t')
-                classification_status = line_parts[0]
-
-                if classification_status != 'U':
-                    taxids.add(line_parts[2])
-
-    return list(taxids)
-
-
-def analyze_file(filename, taxid_to_genus, results, genus_id):
+def analyze_file(filename, species_id, results):
     with open(filename, 'r') as f:
         for line in f:
             line_parts = line.strip().split('\t')
@@ -80,8 +43,8 @@ def analyze_file(filename, taxid_to_genus, results, genus_id):
                 results['total_unclassified'] += 1
             else:
                 results['total_classified'] += 1
-                classification_id = taxid_to_genus.get(line_parts[2])
-                if classification_id == genus_id:
+                classification_id = line_parts[2]
+                if classification_id == species_id:
                     results['correct_classifications'] += 1
                 else:
                     results['incorrect_classifications'] += 1
@@ -89,7 +52,7 @@ def analyze_file(filename, taxid_to_genus, results, genus_id):
     return results
 
 
-folder_path = '/home/zqtianqinzhong/software/ART/datasets/kraken2_results'
+folder_path = '/home/zqtianqinzhong/software/ART/datasets/kaiju_results'
 
 file_results_list = []
 
@@ -100,14 +63,10 @@ global_counter = {
     'incorrect_classifications': 0
 }
 
-taxids = collect_taxids(folder_path)
-taxid_to_genus = get_genus_taxids(taxids)
-
 for filename in os.listdir(folder_path):
     species_name = re.match(r'(.+?)_HS', filename).group(1)
 
     species_id = get_taxid(species_name)
-    genus_id = taxid_to_genus.get(species_id)
 
     file_results = {
         'filename': filename,
@@ -117,31 +76,28 @@ for filename in os.listdir(folder_path):
         'incorrect_classifications': 0
     }
 
-    file_results = analyze_file(os.path.join(folder_path, filename), taxid_to_genus, file_results, genus_id)
+    file_results = analyze_file(os.path.join(folder_path, filename), species_id, file_results)
 
-    print(file_results)
+    TP = file_results['correct_classifications']
+    FP = file_results['incorrect_classifications']
+    FN = file_results['total_unclassified']
 
-    if file_results['correct_classifications'] >= 0:
-        TP = file_results['correct_classifications']
-        FP = file_results['incorrect_classifications']
-        FN = file_results['total_unclassified']
+    precision = TP / (TP + FP) if TP + FP > 0 else 0
+    recall = TP / (TP + FN) if TP + FN > 0 else 0
+    f1_score = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0
+    accuracy = TP / (TP + FP + FN) if TP + FP + FN > 0 else 0
 
-        precision = TP / (TP + FP) if TP + FP > 0 else 0
-        recall = TP / (TP + FN) if TP + FN > 0 else 0
-        f1_score = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0
-        accuracy = TP / (TP + FP + FN) if TP + FP + FN > 0 else 0
+    file_results.update({
+        'precision': precision,
+        'recall': recall,
+        'f1_score': f1_score,
+        'accuracy': accuracy
+    })
 
-        file_results.update({
-            'precision': precision,
-            'recall': recall,
-            'f1_score': f1_score,
-            'accuracy': accuracy
-        })
+    for key in global_counter:
+        global_counter[key] += file_results[key]
 
-        file_results_list.append(file_results)
-
-        for key in global_counter.keys():
-            global_counter[key] += file_results[key]
+    file_results_list.append(file_results)
 
 TP = global_counter['correct_classifications']
 FP = global_counter['incorrect_classifications']
@@ -166,7 +122,7 @@ summary_row = {
 
 file_results_list.append(summary_row)
 
-with open('kraken2_results_genus.csv', 'w', newline='') as f:
+with open('kaiju_results.csv', 'w', newline='') as f:
     fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications',
                   'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
     writer = csv.DictWriter(f, fieldnames=fieldnames)

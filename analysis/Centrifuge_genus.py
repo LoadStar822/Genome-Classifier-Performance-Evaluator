@@ -70,10 +70,19 @@ def collect_taxids(folder_path):
     return list(taxids)
 
 
-def analyze_file(filename, taxid_to_genus, results):
+def analyze_file(filename, taxid_to_genus, results, genus_id):
+    groups = {}
     with open(filename, 'r') as f:
+        next(f)
         for line in f:
             line_parts = line.strip().split('\t')
+            group_key = line_parts[0]
+
+            if group_key not in groups:
+                groups[group_key] = line_parts
+            else:
+                continue
+
             classification_status = line_parts[1]
 
             if classification_status == 'unclassified':
@@ -81,7 +90,7 @@ def analyze_file(filename, taxid_to_genus, results):
             else:
                 results['total_classified'] += 1
                 classification_id = taxid_to_genus.get(line_parts[2])
-                if classification_id:
+                if classification_id == genus_id:
                     results['correct_classifications'] += 1
                 else:
                     results['incorrect_classifications'] += 1
@@ -117,11 +126,11 @@ for filename in os.listdir(folder_path):
         'incorrect_classifications': 0
     }
 
-    file_results = analyze_file(os.path.join(folder_path, filename), taxid_to_genus, file_results)
+    file_results = analyze_file(os.path.join(folder_path, filename), taxid_to_genus, file_results, genus_id)
 
     print(file_results)
 
-    if file_results['correct_classifications'] > 0:
+    if file_results['correct_classifications'] >= 0:
         TP = file_results['correct_classifications']
         FP = file_results['incorrect_classifications']
         FN = file_results['total_unclassified']

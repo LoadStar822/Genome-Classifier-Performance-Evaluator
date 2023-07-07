@@ -1,7 +1,7 @@
 # coding:utf-8
 """
 Author  : Tian
-Time    : 2023-06-19 11:09
+Time    : 2023-07-04 10:17
 Desc:
 """
 from Bio import Entrez
@@ -11,37 +11,36 @@ import csv
 
 Entrez.email = ""
 
+
 def get_taxid(species_name):
     handle = Entrez.esearch(db="taxonomy", term=species_name)
     record = Entrez.read(handle)
     handle.close()
     return record["IdList"][0]
 
+
 def analyze_file(filename, species_id, results):
-    base_name = os.path.basename(filename).replace('_k-SLAM.out_PerRead', '1.fasta')
-    fasta_file = os.path.join('/home/zqtianqinzhong/software/ART/datasets/simulated_data_new', base_name)
     with open(filename, 'r') as f:
+        sum = 0
         for line in f:
             line_parts = line.strip().split('\t')
-            classification_status = line_parts[1]
-
-            if classification_status == '0':
-                results['total_unclassified'] += 1
-            else:
-                results['total_classified'] += 1
-                classification_id = line_parts[1]
+            if line_parts[5] == 'unclassified' or line_parts[5] == 'root':
+                sum += int(line_parts[1])
+                continue
+            if line_parts[3] == 'species':
+                classification_id = line_parts[4]
                 if classification_id == species_id:
-                    results['correct_classifications'] += 1
+                    results['correct_classifications'] += int(line_parts[1])
                 else:
-                    results['incorrect_classifications'] += 1
+                    results['incorrect_classifications'] += int(line_parts[1])
 
-    with open(fasta_file, 'r') as f:
-        fasta_lines = sum(1 for _ in f)
-    results['total_unclassified'] = fasta_lines/2 - results['total_classified']
+        results['total_classified'] = results['correct_classifications'] + results['incorrect_classifications']
+        results['total_unclassified'] = sum - results['total_classified']
 
     return results
 
-folder_path = '/home/zqtianqinzhong/software/ART/datasets/k-SLAM_results'
+
+folder_path = '/home/zqtianqinzhong/software/ART/datasets/mmseqs2_results'
 
 file_results_list = []
 
@@ -53,7 +52,7 @@ global_counter = {
 }
 
 for filename in os.listdir(folder_path):
-    if filename.endswith('.out_PerRead'):  # Add this line to filter for .out_PerRead files
+    if filename.endswith('.out'):  # Add this line to filter for .out_PerRead files
         species_name = re.match(r'(.+?)_HS', filename).group(1)
 
         species_id = get_taxid(species_name)
@@ -112,8 +111,9 @@ summary_row = {
 
 file_results_list.append(summary_row)
 
-with open('k-slam_results.csv', 'w', newline='') as f:
-    fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications', 'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
+with open('mmseqs2_results.csv', 'w', newline='') as f:
+    fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications',
+                  'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
     writer = csv.DictWriter(f, fieldnames=fieldnames)
 
     writer.writeheader()

@@ -1,15 +1,17 @@
 # coding:utf-8
 """
 Author  : Tian
-Time    : 2023-06-19 10:02
+Time    : 2023-06-22 12:08
 Desc:
 """
 from Bio import Entrez
 import os
 import re
 import csv
+from collections import defaultdict
 
 Entrez.email = ""
+
 
 def get_taxid(species_name):
     handle = Entrez.esearch(db="taxonomy", term=species_name)
@@ -17,24 +19,26 @@ def get_taxid(species_name):
     handle.close()
     return record["IdList"][0]
 
-def analyze_file(filename, species_id, results):
-    base_name = os.path.basename(filename).replace('_clark-s.out.csv', '1.fasta')
-    fasta_file = os.path.join('/home/zqtianqinzhong/software/ART/datasets/simulated_data_new', base_name)
-    with open(filename, 'r') as f:
-        next(f)
-        for line in f:
-            line_parts = line.strip().split(',')
-            classification_status = line_parts[3]
 
-            if classification_status == 'NA':
-                results['total_unclassified'] += 1
-            else:
-                results['total_classified'] += 1
-                classification_id = line_parts[3]
-                if classification_id == species_id:
-                    results['correct_classifications'] += 1
-                else:
-                    results['incorrect_classifications'] += 1
+def analyze_file(filename, species_id, results):
+    base_name = os.path.basename(filename).replace('_megablast.out', '1.fasta')
+    fasta_file = os.path.join('/home/zqtianqinzhong/software/ART/datasets/simulated_data_new', base_name)
+
+    groups = defaultdict(list)
+    with open(filename, 'r') as f:
+        for line in f:
+            line_parts = line.strip().split('\t')
+            groups[line_parts[0]].append(line_parts)
+
+    max_lines = [max(lines, key=lambda x: float(x[11])) for lines in groups.values()]
+
+    for line_parts in max_lines:
+        results['total_classified'] += 1
+        classification_id = line_parts[12].split(';')[0]
+        if classification_id == species_id:
+            results['correct_classifications'] += 1
+        else:
+            results['incorrect_classifications'] += 1
 
     with open(fasta_file, 'r') as f:
         fasta_lines = sum(1 for _ in f)
@@ -42,7 +46,8 @@ def analyze_file(filename, species_id, results):
 
     return results
 
-folder_path = '/home/zqtianqinzhong/software/ART/datasets/clark-s_results'
+
+folder_path = '/home/zqtianqinzhong/software/ART/datasets/megablast_results'
 
 file_results_list = []
 
@@ -112,8 +117,9 @@ summary_row = {
 
 file_results_list.append(summary_row)
 
-with open('clark-s_results.csv', 'w', newline='') as f:
-    fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications', 'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
+with open('megablast_results.csv', 'w', newline='') as f:
+    fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications',
+                  'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
     writer = csv.DictWriter(f, fieldnames=fieldnames)
 
     writer.writeheader()

@@ -71,7 +71,9 @@ def collect_taxids(folder_path):
     return list(taxids)
 
 
-def analyze_file(filename, taxid_to_genus, results):
+def analyze_file(filename, taxid_to_genus, results, genus_id):
+    base_name = os.path.basename(filename).replace('_clark.out.csv', '1.fasta')
+    fasta_file = os.path.join('/home/zqtianqinzhong/software/ART/datasets/simulated_data_new', base_name)
     with open(filename, 'r') as f:
         next(f)
         for line in f:
@@ -83,11 +85,13 @@ def analyze_file(filename, taxid_to_genus, results):
             else:
                 results['total_classified'] += 1
                 classification_id = taxid_to_genus.get(line_parts[2])
-                if classification_id:
+                if classification_id == genus_id:
                     results['correct_classifications'] += 1
                 else:
                     results['incorrect_classifications'] += 1
-
+    with open(fasta_file, 'r') as f:
+        fasta_lines = sum(1 for _ in f)
+    results['total_unclassified'] = fasta_lines/2 - results['total_classified']
     return results
 
 
@@ -119,11 +123,11 @@ for filename in os.listdir(folder_path):
         'incorrect_classifications': 0
     }
 
-    file_results = analyze_file(os.path.join(folder_path, filename), taxid_to_genus, file_results)
+    file_results = analyze_file(os.path.join(folder_path, filename), taxid_to_genus, file_results, genus_id)
 
     print(file_results)
 
-    if file_results['correct_classifications'] > 0:
+    if file_results['correct_classifications'] >= 0:
         TP = file_results['correct_classifications']
         FP = file_results['incorrect_classifications']
         FN = file_results['total_unclassified']

@@ -1,7 +1,7 @@
 # coding:utf-8
 """
 Author  : Tian
-Time    : 2023-06-19 10:05
+Time    : 2023-06-23 12:27
 Desc:
 """
 from Bio import Entrez
@@ -60,43 +60,36 @@ def collect_taxids(folder_path):
 
     for filename in os.listdir(folder_path):
         with open(os.path.join(folder_path, filename), 'r') as f:
-            next(f)
             for line in f:
-                line_parts = line.strip().split(',')
-                classification_status = line_parts[3]
+                line_parts = line.strip().split('\t')
+                classification_status = line_parts[0]
 
-                if classification_status != 'NA':
-                    taxids.add(line_parts[3])
+                if classification_status != 'U':
+                    taxids.add(line_parts[2])
 
     return list(taxids)
 
 
 def analyze_file(filename, taxid_to_genus, results, genus_id):
-    base_name = os.path.basename(filename).replace('_clark-s.out.csv', '1.fasta')
-    fasta_file = os.path.join('/home/zqtianqinzhong/software/ART/datasets/simulated_data_new', base_name)
     with open(filename, 'r') as f:
-        next(f)
         for line in f:
-            line_parts = line.strip().split(',')
-            classification_status = line_parts[3]
+            line_parts = line.strip().split('\t')
+            classification_status = line_parts[0]
 
-            if classification_status == 'NA':
+            if classification_status == 'U':
                 results['total_unclassified'] += 1
             else:
                 results['total_classified'] += 1
-                classification_id = taxid_to_genus.get(line_parts[3])
+                classification_id = taxid_to_genus.get(line_parts[2])
                 if classification_id == genus_id:
                     results['correct_classifications'] += 1
                 else:
                     results['incorrect_classifications'] += 1
-    with open(fasta_file, 'r') as f:
-        fasta_lines = sum(1 for _ in f)
-    results['total_unclassified'] = fasta_lines/2 - results['total_classified']
 
     return results
 
 
-folder_path = '/home/zqtianqinzhong/software/ART/datasets/clark-s_results'
+folder_path = '/home/zqtianqinzhong/software/ART/datasets/kaiju_results'
 
 file_results_list = []
 
@@ -173,7 +166,7 @@ summary_row = {
 
 file_results_list.append(summary_row)
 
-with open('clark-s_results_genus.csv', 'w', newline='') as f:
+with open('kaiju_results_genus.csv', 'w', newline='') as f:
     fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications',
                   'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
     writer = csv.DictWriter(f, fieldnames=fieldnames)
