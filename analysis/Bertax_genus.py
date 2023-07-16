@@ -1,60 +1,69 @@
 # coding:utf-8
 """
 Author  : Tian
-Time    : 2023-06-23 15:14
+Time    : 2023-06-18 19:18
 Desc:
 """
+import time
+
 from Bio import Entrez
 import os
 import re
 import csv
-from collections import defaultdict
 
 Entrez.email = ""
 
+def safe_entrez_request(func, *args, max_retries=10, wait_time=5, **kwargs):
+    retries = 0
+    while retries < max_retries:
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            print(f"Request failed with error {str(e)}, retrying ({retries + 1} of {max_retries})")
+            time.sleep(wait_time)
+            retries += 1
+    raise Exception("Max retries exceeded")
 
 def get_taxid(species_name):
-    handle = Entrez.esearch(db="taxonomy", term=species_name)
+    handle = safe_entrez_request(Entrez.esearch, db="taxonomy", term=species_name)
     record = Entrez.read(handle)
     handle.close()
     return record["IdList"][0]
 
-
-def analyze_file(filename, species_id, results):
-    base_name = os.path.basename(filename).replace('_diamond.out', '1.fasta')
-    fasta_file = os.path.join('/home/zqtianqinzhong/software/ART/datasets/simulated_data_new', base_name)
-
-    groups = defaultdict(list)
-    processed_keys = set()
+def analyze_file(filename, taxonomy_hierarchy, results):
     with open(filename, 'r') as f:
+        next(f)
         for line in f:
             line_parts = line.strip().split('\t')
-            if line_parts[0] not in processed_keys:  # Skip if key already processed
-                groups[line_parts[0]].append(line_parts)
-                processed_keys.add(line_parts[0])
+            classification_status = line_parts[5]
 
-    for key, lines in groups.items():
-        line_parts = lines[0]  # Use the first line instead of maximum
-        if len(line_parts) < 2:
-            results['total_classified'] += 1
-            results['incorrect_classifications'] += 1
-            continue
-        results['total_classified'] += 1
-        classification_id = line_parts[1].split(';')[0]
-        if classification_id == species_id:
-            results['correct_classifications'] += 1
-        else:
-            results['incorrect_classifications'] += 1
-
-    with open(fasta_file, 'r') as f:
-        fasta_lines = sum(1 for _ in f)
-    results['total_unclassified'] += fasta_lines/2 - results['total_classified']
+            if classification_status == 'unknown':
+                results['total_unclassified'] += 1
+            else:
+                results['total_classified'] += 1
+                classification_id = line_parts[5]
+                if classification_id == taxonomy_hierarchy:
+                    results['correct_classifications'] += 1
+                else:
+                    results['incorrect_classifications'] += 1
 
     return results
 
+def get_taxonomy_hierarchy(species_name):
+    handle = safe_entrez_request(Entrez.esearch, db="taxonomy", term=species_name)
+    record = Entrez.read(handle)
+    handle.close()
+    if record["IdList"]:
+        taxid = record["IdList"][0]
+        handle = safe_entrez_request(Entrez.efetch, db="taxonomy", id=taxid, retmode="xml")
+        records = Entrez.read(handle)
+        handle.close()
+        if records:
+            lineage = records[0]["Lineage"].split("; ")
+            return lineage
+    return []
 
-
-folder_path = '/home/zqtianqinzhong/software/ART/datasets/diamond_results'
+folder_path = '/dev/disk5/zqtqz/project/zongshu/result/bertax_results'
 
 file_results_list = []
 
@@ -67,8 +76,8 @@ global_counter = {
 
 for filename in os.listdir(folder_path):
     species_name = re.match(r'(.+?)_HS', filename).group(1)
-
-    species_id = get_taxid(species_name)
+    print(species_name)
+    taxonomy_hierarchy = get_taxonomy_hierarchy(species_name)[-1]
 
     file_results = {
         'filename': filename,
@@ -78,7 +87,7 @@ for filename in os.listdir(folder_path):
         'incorrect_classifications': 0
     }
 
-    file_results = analyze_file(os.path.join(folder_path, filename), species_id, file_results)
+    file_results = analyze_file(os.path.join(folder_path, filename), taxonomy_hierarchy, file_results)
 
     TP = file_results['correct_classifications']
     FP = file_results['incorrect_classifications']
@@ -124,9 +133,8 @@ summary_row = {
 
 file_results_list.append(summary_row)
 
-with open('diamond_results.csv', 'w', newline='') as f:
-    fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications',
-                  'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
+with open('bertax_results_super.csv', 'w', newline='') as f:
+    fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications', 'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
     writer = csv.DictWriter(f, fieldnames=fieldnames)
 
     writer.writeheader()

@@ -20,12 +20,14 @@ def get_taxid(species_name):
 
 
 def analyze_file(filename, species_id, results):
+    base_name = os.path.basename(filename).replace('_mmseqs2.out', '1.fasta')
+    fasta_file = os.path.join('/home/zqtianqinzhong/software/ART/datasets/simulated_data_new', base_name)
     with open(filename, 'r') as f:
-        sum = 0
+        sum1 = 0
         for line in f:
             line_parts = line.strip().split('\t')
             if line_parts[5] == 'unclassified' or line_parts[5] == 'root':
-                sum += int(line_parts[1])
+                sum1 += int(line_parts[1])
                 continue
             if line_parts[3] == 'species':
                 classification_id = line_parts[4]
@@ -35,7 +37,12 @@ def analyze_file(filename, species_id, results):
                     results['incorrect_classifications'] += int(line_parts[1])
 
         results['total_classified'] = results['correct_classifications'] + results['incorrect_classifications']
-        results['total_unclassified'] = sum - results['total_classified']
+        results['total_unclassified'] = sum1 - results['total_classified']
+
+    with open(fasta_file, 'r') as f:
+        fasta_lines = sum(1 for _ in f)
+
+    results['total_unclassified'] += fasta_lines/2 - results['total_classified']
 
     return results
 

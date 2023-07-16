@@ -4,6 +4,7 @@ Author  : Tian
 Time    : 2023-07-05 13:20
 Desc:
 """
+import time
 from collections import defaultdict
 
 from Bio import Entrez
@@ -24,8 +25,19 @@ kaiju_folder_path = '/home/zqtianqinzhong/software/ART/datasets/kaiju_results'
 group_results = {}
 
 
+def safe_entrez_request(func, *args, max_retries=10, wait_time=5, **kwargs):
+    retries = 0
+    while retries < max_retries:
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            print(f"Request failed with error {str(e)}, retrying ({retries + 1} of {max_retries})")
+            time.sleep(wait_time)
+            retries += 1
+    raise Exception("Max retries exceeded")
+
 def get_taxid(species_name):
-    handle = Entrez.esearch(db="taxonomy", term=species_name)
+    handle = safe_entrez_request(Entrez.esearch, db="taxonomy", term=species_name)
     record = Entrez.read(handle)
     handle.close()
     return record["IdList"][0]
@@ -106,7 +118,7 @@ def analyze_file_clark(filename):
                 classification_id = line_parts[2]
                 if classification_id not in group_results[group_key]:
                     group_results[group_key][classification_id] = 0
-                group_results[group_key][classification_id] += 50
+                group_results[group_key][classification_id] += 60
 
 
 def analyze_file_clarks(filename):
@@ -124,7 +136,7 @@ def analyze_file_clarks(filename):
                 classification_id = line_parts[3]
                 if classification_id not in group_results[group_key]:
                     group_results[group_key][classification_id] = 0
-                group_results[group_key][classification_id] += 5
+                group_results[group_key][classification_id] += 20
 
 
 def analyze_file_kslam(filename):

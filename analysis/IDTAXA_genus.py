@@ -1,8 +1,9 @@
-# coding:utf-8
 """
-Author  : Tian
-Time    : 2023-07-04 10:18
-Desc:
+@Name: IDTAXA_genus.py
+@Auth: Tian
+@Date: 2023/7/14-18:45
+@Desc: 
+@Ver : 0.0.0
 """
 import time
 
@@ -12,7 +13,6 @@ import re
 import csv
 
 Entrez.email = ""
-
 
 def safe_entrez_request(func, *args, max_retries=10, wait_time=5, **kwargs):
     retries = 0
@@ -25,44 +25,47 @@ def safe_entrez_request(func, *args, max_retries=10, wait_time=5, **kwargs):
             retries += 1
     raise Exception("Max retries exceeded")
 
-
 def get_taxid(species_name):
-    handle = Entrez.esearch(db="taxonomy", term=species_name)
+    handle = safe_entrez_request(Entrez.esearch, db="taxonomy", term=species_name)
     record = Entrez.read(handle)
     handle.close()
     return record["IdList"][0]
 
-
-def analyze_file(filename, genus_id, results):
-    base_name = os.path.basename(filename).replace('_mmseqs2.out', '1.fasta')
-    fasta_file = os.path.join('/home/zqtianqinzhong/software/ART/datasets/simulated_data_new', base_name)
-
+def analyze_file(filename, taxonomy_hierarchy, results):
     with open(filename, 'r') as f:
-        sum1 = 0
+        next(f)
         for line in f:
-            line_parts = line.strip().split('\t')
-            if line_parts[5] == 'unclassified' or line_parts[5] == 'root':
-                sum1 += int(line_parts[1])
-                continue
-            if line_parts[3] == 'genus':
-                classification_id = line_parts[4]
-                if classification_id == genus_id:
-                    results['correct_classifications'] += int(line_parts[1])
+            line = line.replace("\"", "")
+            line_parts = line.strip().split(',')
+            classification_status = line_parts[20]
+
+            if classification_status == 'NA':
+                results['total_unclassified'] += 1
+            else:
+                results['total_classified'] += 1
+                classification_id = line_parts[18]
+                if classification_id == taxonomy_hierarchy:
+                    results['correct_classifications'] += 1
                 else:
-                    results['incorrect_classifications'] += int(line_parts[1])
-
-        results['total_classified'] = results['correct_classifications'] + results['incorrect_classifications']
-        results['total_unclassified'] = sum1 - results['total_classified']
-
-    with open(fasta_file, 'r') as f:
-        fasta_lines = sum(1 for _ in f)
-
-    results['total_unclassified'] += fasta_lines/2 - results['total_classified']
+                    results['incorrect_classifications'] += 1
 
     return results
 
+def get_taxonomy_hierarchy(species_name):
+    handle = safe_entrez_request(Entrez.esearch, db="taxonomy", term=species_name)
+    record = Entrez.read(handle)
+    handle.close()
+    if record["IdList"]:
+        taxid = record["IdList"][0]
+        handle = safe_entrez_request(Entrez.efetch, db="taxonomy", id=taxid, retmode="xml")
+        records = Entrez.read(handle)
+        handle.close()
+        if records:
+            lineage = records[0]["Lineage"].split("; ")
+            return lineage
+    return []
 
-folder_path = '/home/zqtianqinzhong/software/ART/datasets/mmseqs2_results'
+folder_path = '/dev/disk5/zqtqz/project/zongshu/result/idtaxa_results'
 
 file_results_list = []
 
@@ -73,34 +76,10 @@ global_counter = {
     'incorrect_classifications': 0
 }
 
-
-def get_genus_taxids(species_ids):
-    handle = safe_entrez_request(Entrez.efetch, db="taxonomy", id=species_ids)
-    records = Entrez.read(handle)
-    handle.close()
-
-    taxid_to_genus = {}
-    for record in records:
-        if record["Rank"] == "genus":
-            taxid_to_genus[record["TaxId"]] = record["TaxId"]
-        else:
-            genus_taxid = None
-            if "LineageEx" in record:
-                for lineage in record["LineageEx"]:
-                    if lineage["Rank"] == "genus":
-                        genus_taxid = lineage["TaxId"]
-                        break
-            taxid_to_genus[record["TaxId"]] = genus_taxid
-
-    return taxid_to_genus
-
-
 for filename in os.listdir(folder_path):
-    if filename.endswith('.out'):  # Add this line to filter for .out_PerRead files
+    if filename.endswith('.csv'):
         species_name = re.match(r'(.+?)_HS', filename).group(1)
-
-        species_id = get_taxid(species_name)
-        genus_id = get_genus_taxids(species_id)[species_id]
+        taxonomy_hierarchy = get_taxonomy_hierarchy(species_name)[-1]
 
         file_results = {
             'filename': filename,
@@ -110,7 +89,7 @@ for filename in os.listdir(folder_path):
             'incorrect_classifications': 0
         }
 
-        file_results = analyze_file(os.path.join(folder_path, filename), genus_id, file_results)
+        file_results = analyze_file(os.path.join(folder_path, filename), taxonomy_hierarchy, file_results)
 
         TP = file_results['correct_classifications']
         FP = file_results['incorrect_classifications']
@@ -156,9 +135,8 @@ summary_row = {
 
 file_results_list.append(summary_row)
 
-with open('mmseqs2_results_genus.csv', 'w', newline='') as f:
-    fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications',
-                  'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
+with open('idtaxa_results_super.csv', 'w', newline='') as f:
+    fieldnames = ['filename', 'total_classified', 'total_unclassified', 'correct_classifications', 'incorrect_classifications', 'precision', 'recall', 'f1_score', 'accuracy']
     writer = csv.DictWriter(f, fieldnames=fieldnames)
 
     writer.writeheader()
