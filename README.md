@@ -12,6 +12,10 @@ In subsequent updates, the functionality for analyzing the accuracy and AUPR (Ar
 - Calculate total running time and memory usage of each classifier
 - Upcoming: Analyze the accuracy and AUPR of each classifier for a comprehensive evaluation
 
+## 🔗 Dataset Download
+
+You can download the dataset used for this project from the following link: [Genome Classifier Dataset](https://drive.google.com/file/d/1Hs8Is1sn5eAuPsjlYM__ZHQQt5osyJrJ/view?usp=sharing).
+
 ## 🚀 Getting Started
 
 1. Clone the repository
